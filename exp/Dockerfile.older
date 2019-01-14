@@ -1,0 +1,6 @@
+FROM ubuntu:16.04
+ADD ./install-sgx-2.3.sh /
+RUN sed -i "s/sudo//g" install-sgx-2.3.sh
+#ENTRYPOINT ["/install-sgx-2.3.sh"]
+RUN chmod 777 /install-sgx-2.3.sh
+CMD /bin/bash
