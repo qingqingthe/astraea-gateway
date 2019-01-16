@@ -1,0 +1,19 @@
+FROM silicon_base
+MAINTAINER Dana Kuban
+
+# add astraea.cpp
+ADD astraea.cpp http_request_helper.h /
+
+# generate symbols.hh
+RUN /bin/iod_generate_symbols astraea.cpp symbols_astraea.hh
+
+# compile app
+RUN clang++ -std=c++14 -I /include astraea.cpp -lmicrohttpd -lcurl -o astraea
+
+# create script for entering container -> starting the app
+RUN echo "/astraea" > run_example.sh && chmod +x run_example.sh
+
+EXPOSE 12347
+
+ENTRYPOINT ["sh", "-c", "/run_example.sh"]
+#CMD tail -f /dev/null

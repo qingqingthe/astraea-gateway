@@ -1,0 +1,31 @@
+FROM alpine:3.6
+MAINTAINER Dana Kuban
+
+RUN apk update \
+    && apk upgrade \
+    && apk add g++ \
+	ca-certificates wget \
+	git \
+	cmake \
+	make \
+	libmicrohttpd-dev \
+	boost-dev \
+	nano \
+	clang \
+	curl-dev \
+	curl \
+    openssl-dev \
+    jsoncpp-dev
+	
+# clone silicon
+RUN git clone https://github.com/matt-42/silicon.git
+# convert cmake... in install.sh to make...
+RUN  sed -i "s|cmake\ \.\.\ -DCMAKE_PREFIX_PATH\=\$1\ -DCMAKE_INSTALL_PREFIX\=\$1|cmake\ \.\.\ -G\"Unix\ Makefiles\"\ -DCMAKE_PREFIX_PATH\=\$1\ -DCMAKE_INSTALL_PREFIX\=\$1|g" /silicon/install.sh
+# install silicon
+RUN cd silicon && ls && cat install.sh && ./install.sh /
+
+# install websocketpp
+RUN git clone https://github.com/zaphoyd/websocketpp.git
+RUN cd websocketpp && cmake . && make install
+
+CMD tail -f /dev/null

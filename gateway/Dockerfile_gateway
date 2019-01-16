@@ -1,0 +1,19 @@
+FROM silicon_base
+MAINTAINER Dana Kuban
+
+# add gateway.cpp
+ADD gateway.cpp http_request_helper.h /
+
+# generate symbols.hh
+RUN /bin/iod_generate_symbols gateway.cpp symbols_gateway.hh
+
+# compile app
+RUN clang++ -std=c++14 -I /include gateway.cpp -lmicrohttpd -lcurl -o gateway
+
+# create script for entering container -> starting the app
+RUN echo "/gateway" > run_example.sh && chmod +x run_example.sh
+
+EXPOSE 12345
+
+ENTRYPOINT ["sh", "-c", "/run_example.sh"]
+#CMD tail -f /dev/null

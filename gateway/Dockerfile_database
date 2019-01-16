@@ -1,0 +1,19 @@
+FROM silicon_base
+MAINTAINER Dana Kuban
+
+# add database.cpp
+ADD database.cpp http_request_helper.h /
+
+# generate symbols.hh
+RUN /bin/iod_generate_symbols database.cpp symbols_database.hh
+
+# compile app
+RUN clang++ -std=c++14 -I /include database.cpp -lmicrohttpd -lcurl -o database
+
+# create script for entering container -> starting the app
+RUN echo "/database" > run_example.sh && chmod +x run_example.sh
+
+EXPOSE 12348
+
+ENTRYPOINT ["sh", "-c", "/run_example.sh"]
+#CMD tail -f /dev/null

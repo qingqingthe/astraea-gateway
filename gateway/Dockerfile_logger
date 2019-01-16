@@ -1,0 +1,19 @@
+FROM silicon_base
+MAINTAINER Dana Kuban
+
+# add logger.cpp
+ADD logger.cpp http_request_helper.h /
+
+# generate symbols.hh
+RUN /bin/iod_generate_symbols logger.cpp symbols_logger.hh
+
+# compile app
+RUN clang++ -std=c++14 -I /include logger.cpp -lmicrohttpd -lcurl -o logger
+
+# create script for entering container -> starting the appw
+RUN echo "/logger" > run_example.sh && chmod +x run_example.sh
+
+EXPOSE 12346
+
+ENTRYPOINT ["sh", "-c", "/run_example.sh"]
+#CMD tail -f /dev/nullaw

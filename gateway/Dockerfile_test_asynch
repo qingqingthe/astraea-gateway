@@ -1,0 +1,19 @@
+FROM silicon_base
+MAINTAINER Dana Kuban
+
+# add test_asynch.cpp
+ADD test_asynch.cpp /
+
+# generate symbols.hh
+RUN /bin/iod_generate_symbols test_asynch.cpp symbols_test.hh
+
+# compile app
+RUN clang++ -std=c++14 -I /include test_asynch.cpp -lmicrohttpd -lcurl -o test_asynch
+
+# create script for entering container -> starting the appw
+RUN echo "/test_asynch" > run_example.sh && chmod +x run_example.sh
+
+EXPOSE 4444
+
+ENTRYPOINT ["sh", "-c", "/run_example.sh"]
+#CMD tail -f /dev/nullaw
