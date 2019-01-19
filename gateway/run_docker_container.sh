@@ -1,9 +1,9 @@
 # build docker images
 docker build -t silicon_base -f Dockerfile_base .
 docker build -t silicon_gateway -f Dockerfile_gateway .
-docker build -t silicon_logger -f Dockerfile_logger .
 docker build -t silicon_astraea -f Dockerfile_astraea .
 docker build -t silicon_database -f Dockerfile_database .
+docker build -t silicon_logger -f Dockerfile_logger .
 docker build -t silicon_client -f Dockerfile_client .
 
 # create network

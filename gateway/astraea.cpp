@@ -8,7 +8,8 @@
 using namespace sl; // Silicon namespace
 using namespace s; // Symbols namespace
 
-bool ack_process_is_running = false;
+bool ack_read_process_is_running = false;
+bool ack_write_process_is_running = false;
 
 auto auth_api = http_api(
 
@@ -20,11 +21,11 @@ auto auth_api = http_api(
             log("Astraea received read response " + param.response);
 
             // check if process is currently running
-            if(ack_process_is_running) {
+            if(ack_read_process_is_running) {
                 log("ack process is running");
                 return;
             } else {
-                ack_process_is_running = true;
+                ack_read_process_is_running = true;
             }
 
             // send request to logger
@@ -37,18 +38,18 @@ auto auth_api = http_api(
             restCallPost(string("gateway:12345/read_response_from_auth?response=auth_response_") + param.response);
 
             // reset running flag
-            ack_process_is_running = false;
+            ack_read_process_is_running = false;
         },
 
         POST / _ack_write_request * get_parameters(_request) = [] (auto param) {
             log("Astraea received write request " + param.request);
 
             // check if process is currently running
-            if(ack_process_is_running) {
+            if(ack_write_process_is_running) {
                 log("ack process is running");
                 return;
             } else {
-                ack_process_is_running = true;
+                ack_write_process_is_running = true;
             }
 
             // send request to logger
@@ -61,11 +62,9 @@ auto auth_api = http_api(
             restCallPost(string("gateway:12345/write_response_from_auth?response=auth_response_") + param.request);
 
             // reset running flag
-            ack_process_is_running = false;
+            ack_write_process_is_running = false;
         }
 );
-
-//auto auth_api_ga = add_global_middlewares<request_logger>::to(auth_api);
 
 int main()
 {
