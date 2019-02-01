@@ -14,16 +14,8 @@ auto logger_api = http_api(
             return D(_message = "hello world from the logger api");
         },
 
-        POST / _read_request * get_parameters(_request) = [] (auto param) {
-            log("Logger received read request " + param.request);
-        },
-
-        POST / _write_request * get_parameters(_request) = [] (auto param) {
-            log("Logger received write request " + param.request);
-        },
-
-        POST / _db_response * get_parameters(_response) = [] (auto param) {
-            log("Logger received db response " + param.response);
+        POST / _log * get_parameters(_message) = [] (auto param) {
+            log(param.message);
         }
 );
 

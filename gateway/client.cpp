@@ -3,7 +3,6 @@
 #include "symbols_client.hh"
 #include <stdio.h>
 #include <iostream>
-#include <thread>
 #include <stdlib.h>
 #include "http_request_helper.h"
 
@@ -22,9 +21,9 @@ auto client_api = http_api(
 
             // send read requests to gateway (asynchronously)
             for (int i = 0; i < param.max; i++) {
-                thread t0(restCallPost, (string("gateway:12345/read_request_from_client?request=") + to_string(i) + string("&ip_client=client%3A12346")));
-                t0.detach();
-            }
+                map<string, string> params = {{"request", to_string(i)}, {"ip_client", "client:12346"}};
+                restCallPost("gateway:4000/write_request_from_client", params);
+            };
         },
 
         POST / _send_write_requests * get_parameters(_max = int()) = [] (auto param) {
@@ -32,7 +31,8 @@ auto client_api = http_api(
 
             // send write requests to gateway
             for (int i = 0; i < param.max; i++) {
-                restCallPost(string("gateway:12345/write_request_from_client?request=") + to_string(i) + string("&ip_client=client%3A12346"));
+                map<string, string> params = {{"request", to_string(i)}, {"ip_client", "client:12346"}};
+                restCallPost("gateway:4000/write_request_from_client", params);
             }
         },
 
@@ -41,12 +41,14 @@ auto client_api = http_api(
 
             // send read and write requests to gateway
             for (int i = 0; i < param.max; i++) {
+                waitSomeTime(rand() % 10);
                 int r = rand() % 2;
                 log(r);
+                map<string, string> params = {{"request", to_string(i)}, {"ip_client", "client:12346"}};
                 if (r)
-                    restCallPost(string("gateway:12345/read_request_from_client?request=") + to_string(i) + string("&ip_client=client%3A12346"));
+                    restCallPost("gateway:4000/read_request_from_client", params);
                 else
-                    restCallPost(string("gateway:12345/write_request_from_client?request=") + to_string(i) + string("&ip_client=client%3A12346"));
+                    restCallPost("gateway:4000/write_request_from_client", params);
             }
         },
 

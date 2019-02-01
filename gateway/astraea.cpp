@@ -3,13 +3,14 @@
 #include "symbols_astraea.hh"
 #include <stdio.h>
 #include <iostream>
+#include <mutex>
 #include "http_request_helper.h"
 
 using namespace sl; // Silicon namespace
 using namespace s; // Symbols namespace
 
-bool ack_read_process_is_running = false;
-bool ack_write_process_is_running = false;
+bool ack_process_is_running = false;
+mutex m;
 
 auto auth_api = http_api(
 
@@ -17,57 +18,37 @@ auto auth_api = http_api(
             return D(_response = "hello world from the Astraea api");
         },
 
-        POST / _ack_read_response * get_parameters(_response) = [] (auto param) {
-            log("Astraea received read response " + param.response);
-
-            // check if process is currently running
-            if(ack_read_process_is_running) {
-                log("ack process is running");
-                return;
-            } else {
-                ack_read_process_is_running = true;
-            }
+        POST / _write * get_parameters(_form) = [] (auto param) {
+            log("Astraea received request " + param.form);
 
             // send request to logger
-            restCallPost(string("logger:12345/db_response?response=") + string(param.response));
+            map<string, string> params = {{"message", param.form}};
+            restCallPost("logger:12345/log", params);
+
+            // check if process is currently running
+            m.lock();
+            if(ack_process_is_running) {
+                log("ack process is running");
+                m.unlock();
+                return;
+            } else {
+                ack_process_is_running = true;
+                m.unlock();
+            }
 
             // mock generating M.C. value
             waitSomeTime(80);
 
             // respond
-            restCallPost(string("gateway:12345/read_response_from_auth?response=auth_response_") + param.response);
-
+            params = {{"response", string(param.form)}};
+            restCallPost("gateway:4000/release", params);
             // reset running flag
-            ack_read_process_is_running = false;
-        },
-
-        POST / _ack_write_request * get_parameters(_request) = [] (auto param) {
-            log("Astraea received write request " + param.request);
-
-            // check if process is currently running
-            if(ack_write_process_is_running) {
-                log("ack process is running");
-                return;
-            } else {
-                ack_write_process_is_running = true;
-            }
-
-            // send request to logger
-            restCallPost(string("logger:12345/write_request?request=") + string(param.request));
-
-            // mock generating M.C. value
-            waitSomeTime(80);
-
-            // respond
-            restCallPost(string("gateway:12345/write_response_from_auth?response=auth_response_") + param.request);
-
-            // reset running flag
-            ack_write_process_is_running = false;
+            ack_process_is_running = false;
         }
 );
 
 int main()
 {
-    sl::mhd_json_serve(auth_api, 12345, _one_thread_per_connection, _nthreads = 3);
+    sl::mhd_json_serve(auth_api, 5000, _one_thread_per_connection, _nthreads = 3);
 }
 

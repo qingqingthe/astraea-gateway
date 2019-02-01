@@ -26,6 +26,6 @@ auto logger_api = http_api(
 
 int main()
 {
-    sl::mhd_json_serve(logger_api, 12345);
+    sl::mhd_json_serve(logger_api, 3306);
 }
 
