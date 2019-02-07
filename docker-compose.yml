@@ -1,31 +1,60 @@
 version: '3.2'
 services:
     gateway:
+        container_name: gateway
         build: ./gateway
         ports:
             - "4000:4000"
         depends_on: 
             - target-db
-
+        deploy:
+            resources:
+                limits:
+                    cpus: '0.25'
+          
     astraea:
+        container_name: astraea
         build: ./astraea
         ports:
             - "5000:5000"
         depends_on:
             - log-db
+            - target-db
+            - amcs
+#        deploy:
+#            resources:
+#                limits:
+#                    cpus: '0.25'  
+ 
 
+    amcs:
+        container_name: amcs
+#        build: ./amcs
+        image: astraea/amcs:0.2
+        ports:
+            - "4444:4444" 
+        devices:
+            - "/dev/isgx:/dev/isgx"
+            - "/dev/mei0:/dev/mei0"
+        deploy: 
+            resources:
+                limits:
+                    cpus: '0.25'
+           
     log-db:
+        container_name: log-db
         command: ["mysqld", "--innodb-use-native-aio=0"]
         image: sconecuratedimages/apps:mariadb-10-alpine   
         expose:
             - "3306"
         environment:
             MYSQL_ROOT_PASSWORD: 'TEST_PASSWORD'       
-            MYSQL_DATABASE: 'audit'
+            MYSQL_DATABASE: 'log'
             MYSQL_USER: 'tpccuser'
             MYSQL_PASSWORD: 'TEST_PASSWORD'
 
     target-db:
+        container_name: target-db
         command: ["mysqld", "--innodb-use-native-aio=0"]
         image: sconecuratedimages/apps:mariadb-10-alpine   
 #        volumes:

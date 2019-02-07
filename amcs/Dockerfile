@@ -49,12 +49,12 @@ ADD ./AMCS/monotonic /monotonic
 RUN ./sgx_linux_x64_psw_1.9.100.39124.bin
 RUN LD_LIBRARY_PATH=/home/ubuntu/sgx-install/linux-sgx/linux/installer/bin/sgxsdk/sdk_libs:/home/ubuntu/sgx-install/linux-sgx/linux/installer/bin/sgxsdk/sdk_libs:/home/ubuntu/sgx-install/linux-sgx/linux/installer/bin/sgxsdk/sdk_libs:/opt/Intel/iclsClient/lib dpkg -i libsgx-urts_2.4.100.48163-1_amd64.deb libsgx-enclave-common_2.4.100.48163-1_amd64.deb
 WORKDIR ../../../../
-RUN wget https://software.intel.com/sites/default/files/m/b/2/9/0/9/37961-mei_7.1.20.25.zip
-RUN apt-get install -y unzip alien
-RUN unzip 37961-mei_7.1.20.25.zip
-WORKDIR ./outputdir
-RUN alien mei-7.1.20-25.x86_64.rpm
-RUN dpkg -i mei_7.1.20-26_amd64.deb
+#RUN wget https://software.intel.com/sites/default/files/m/b/2/9/0/9/37961-mei_7.1.20.25.zip
+#RUN apt-get install -y unzip alien
+#RUN unzip 37961-mei_7.1.20.25.zip
+#WORKDIR ./outputdir
+#RUN alien mei-7.1.20-25.x86_64.rpm
+#RUN dpkg -i mei_7.1.20-26_amd64.deb
 ADD start_up.sh /
 RUN chmod 755 /start_up.sh 
 ENTRYPOINT ["/start_up.sh"]
