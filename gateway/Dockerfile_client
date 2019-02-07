@@ -13,6 +13,9 @@ RUN clang++ -std=c++14 -I /include client.cpp -lmicrohttpd -lcurl -pthread -o cl
 # create script for entering container -> starting the app
 RUN echo "/client" > run_example.sh && chmod +x run_example.sh
 
+# create folder data
+RUN mkdir data
+
 EXPOSE 12346
 
 ENTRYPOINT ["sh", "-c", "/run_example.sh"]

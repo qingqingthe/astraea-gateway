@@ -35,3 +35,6 @@ then
     echo "send write requests"
     curl -X POST "127.0.0.1:12346/send_write_requests?max=$max"
 fi
+
+sleep 10s
+curl -X POST "127.0.0.1:12346/write_results"

@@ -10,7 +10,7 @@ docker build -t silicon_client -f Dockerfile_client .
 docker network create my_network
 
 # run every image in a new tab and connect to network
-ttab -t "gateway" 'docker run --name gateway -p 12345:12345 --net my_network silicon_gateway'
+ttab -t "gateway" 'docker run --name gateway --net my_network silicon_gateway'
 ttab -t "astraea" 'docker run --name astraea --net my_network silicon_astraea'
 ttab -t "database" 'docker run --name database --net my_network silicon_database'
 ttab -t "logger" 'docker run --name logger --net my_network silicon_logger'

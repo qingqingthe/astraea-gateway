@@ -16,34 +16,33 @@
 #include <chrono>
 #include <map>
 #include <string>
+#include <mutex>
 #include <boost/date_time/posix_time/posix_time.hpp>
 
 using namespace std;
+mutex mt;
 
 struct request {
     string message;
     string ip_client;
-    time_t timestamp;
-    bool is_sent_to_astraea;
+    chrono::milliseconds timestamp;
     bool read_request;
 public:
     string toString() {
         cout << message;
         cout << ip_client;
-        cout << put_time(std::localtime(&timestamp), "%F %T");
-        cout << is_sent_to_astraea << endl;
+        cout << timestamp.count();
         ostringstream ss;
         ss << "{\n\tmessage: " << message << ",\n\tip_client: " << ip_client
-           << ",\n\ttimestamp: " << put_time(std::localtime(&timestamp), "%F %T")
-           << ",\n\tis_sent_to_astraea: " << std::boolalpha << is_sent_to_astraea
-           << ",\n\tread_request: " << read_request << "\n}" << endl;
+           << ",\n\ttimestamp: " << to_string(timestamp.count())
+           << ",\n\tread_request: " << std::boolalpha << read_request << "\n}" << endl;
         return ss.str();
     }
 };
 
 string createForm(string ip_client, string request) {
     ostringstream ss;
-    ss << "{\"User\": \"" << ip_client << "\", \"Query\": \"" << request << "\"}" << endl;
+    ss << "{\"User\": \"" << ip_client << "\", \"Query\": \"" << request << "\"}";
     return ss.str();
 }
 
@@ -52,6 +51,7 @@ void waitSomeTime(int sleepTime) {
 }
 
 void log(string message) {
+    mt.lock();
     const boost::posix_time::ptime now =
             boost::posix_time::microsec_clock::local_time();
     const boost::posix_time::time_duration td = now.time_of_day();
@@ -60,6 +60,7 @@ void log(string message) {
             td.hours(), td.minutes(), td.seconds(), td.total_milliseconds() -
                                                     ((td.hours() * 3600 + td.minutes() * 60 + td.seconds()) * 1000));
     cout << buf << " " << message << endl;
+    mt.unlock();
 }
 
 size_t static WriteCallback(char *contents, size_t size, size_t nmemb, void *userp) {
@@ -113,6 +114,7 @@ string restCallGet(string url, map <string, string> params) {
         curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
         CURLcode res = curl_easy_perform(curl);
         response = getResponseFromJson(response);
+        log("called " + url);
         curl_easy_cleanup(curl);
     }
     return response;
