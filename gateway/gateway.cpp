@@ -15,8 +15,8 @@ using namespace chrono;
 
 queue <request> readQueue;
 queue <request> writeQueue;
-// this flag is to remember which kind of request was sent to astraea and has not been responded yet
-bool answerReadRequests;
+map<long, bool> astraeaFlags;
+long astraeaId = 1;
 // this flags are to remember which kind of request can be sent currently to astraea
 bool sendReadRequestsToAstraea = true;
 bool sendWriteRequestsToAstraea = true;
@@ -32,6 +32,7 @@ bool sendWriteRequestsToAstraea = true;
  * so the flags are reset before we can evaluate to which requests we have to respond
 */
 mutex m;
+mutex m2;
 
 // for debugging reasons
 void printQueue(queue <request> &q) {
@@ -44,68 +45,108 @@ void printQueue(queue <request> &q) {
 }
 
 void sendRequestToAstraea(string ip_client, string request, bool readRequest) {
-    map <string, string> params = {{"form", createForm(string(ip_client), string(request))}};
+
+    // block so that not two threads can set the flags in parallel
+    m2.lock();
+
+    // get current timestamp
+    milliseconds now = duration_cast<milliseconds>(system_clock::now().time_since_epoch());
+
+    // send request to astraea
+    map <string, string> params = {{"form", createForm(now.count() % 10000, string(ip_client), string(request))}};
     string response = restCallGet("astraea:5000/write", params);
 
-    // flag to decide whether request is processed by astraea
+    // if request is successfully sent to astraea, timestamp is now, else 0
     milliseconds timestamp(0);
+
+    // evaluate response from astraea
     if (response == "accepted") {
-        log("accepted: " + request);
-        // block sending write requests to astraea
+        log("accepted: " + request + ", batch: " + to_string(now.count() % 10000));
+        // block sending (!readRequest) requests to astraea
         sendReadRequestsToAstraea = readRequest;
         sendWriteRequestsToAstraea = !readRequest;
-        answerReadRequests = readRequest;
-        timestamp = duration_cast<milliseconds>(system_clock::now().time_since_epoch());
+
+        // new astraea batch is created
+        /**
+         * the approach to use milliseconds as ids assumes that one process
+         * (send request to astraea, receive response and get all request that were sent before from queue)
+         * doesn't take longer than 10 seconds -> adjustable
+         */
+        astraeaId = now.count() % 10000;
+        astraeaFlags[astraeaId] = readRequest;
+        timestamp = now;
     } else if (response == "blocked" &&
                ((sendReadRequestsToAstraea && readRequest) || (sendWriteRequestsToAstraea && !readRequest))) {
         // astraea is generating mc value for this kind of requests
-        log("blocked: " + request);
-        timestamp = duration_cast<milliseconds>(system_clock::now().time_since_epoch());
+        log("blocked: " + request + ", batch: " + to_string(astraeaId));
+        timestamp = now;
     }
 
     // push request to queue
-    struct request r = {request, ip_client, timestamp, readRequest};
+    struct request r = {astraeaId, request, ip_client, timestamp, readRequest};
     if (readRequest) {
         readQueue.push(r);
-        //printQueue(readQueue);
+        if (timestamp.count() == 0)
+            log(string(readRequest ? "read" : "write") + " request was not sent: " + request);
     } else {
         writeQueue.push(r);
-        //printQueue(writeQueue);
+        if (timestamp.count() == 0)
+            log(string(readRequest ? "read" : "write") + " request was not sent: " + request);
+    }
+    m2.unlock();
+}
+
+void resendRequestsAsync(list <request> requests) {
+    for (auto request : requests) {
+        sendRequestToAstraea(request.ip_client, request.message, request.read_request);
     }
 }
 
 // get all requests from queue that were sent to astraea
-list <request> getRequestsSentToAstraea(double response_ms) {
-    // decide with answerReadRequests flag which queue to touch
-    queue <request> &queueInQuestion = answerReadRequests ? readQueue : writeQueue;
-    queue <request> &otherQueue = answerReadRequests ? writeQueue : readQueue;
+list <request> getRequestsSentToAstraea(double response_ms, long response_id) {
+    // decide with id and flags map which queue to iterate for requests
+    map<long, bool>::iterator iter = astraeaFlags.find(response_id);
+    if (iter == astraeaFlags.end())
+        return list<request>();
+    bool readRequest = iter->second;
+
+    queue <request> &queueInQuestion = readRequest ? readQueue : writeQueue;
+    queue <request> &otherQueue = readRequest ? writeQueue : readQueue;
+
     list <request> requestsToHandle;
     list <request> requestsToResend;
 
-    while (!queueInQuestion.empty()) {
+    // iterate through queue with kind of requests processed by astraea
+    int queueSize = queueInQuestion.size();
+    log("queue size: " + to_string(queueSize));
+    for (int i = 0; i < queueSize; i++) {
         if (queueInQuestion.front().timestamp.count() == 0) {
-            // request was not sent to astraea
-            //log("never: " + to_string(queueInQuestion.front().timestamp.count()) + ", " + queueInQuestion.front().message);
+            // request was not sent to astraea -> resend
+            log("never: " + to_string(queueInQuestion.front().timestamp.count()) + ", " +
+                queueInQuestion.front().message);
             request r = queueInQuestion.front();
             requestsToResend.push_back(queueInQuestion.front());
             queueInQuestion.pop();
-        } else if (queueInQuestion.front().timestamp.count() < response_ms) {
-            // request was sent to astraea before astraea responded
-            //log("in time: " + to_string(queueInQuestion.front().timestamp.count()) + ", " + queueInQuestion.front().message);
+        } else if (queueInQuestion.front().astraeaId == response_id) {
+            // request was in same batch
+            log("right batch: " + to_string(queueInQuestion.front().astraeaId) + " " + queueInQuestion.front().message);
             requestsToHandle.push_back(queueInQuestion.front());
             queueInQuestion.pop();
         } else {
-            // request was sent after response to astraea
-            //log("too late: " + to_string(queueInQuestion.front().timestamp.count()) + ", " + queueInQuestion.front().message);
-            break;
+            // request is in wrong batch -> put at the end of the queue
+            log("wrong batch: " + to_string(queueInQuestion.front().astraeaId) + " " + queueInQuestion.front().message);
+            queueInQuestion.push(queueInQuestion.front());
+            queueInQuestion.pop();
         }
     }
 
     // also resend requests that were not yet processed to astraea from other queue
-    for (int i = 0; i < otherQueue.size(); i++) {
+    queueSize = otherQueue.size();
+    for (int i = 0; i < queueSize; i++) {
         if (otherQueue.front().timestamp.count() == 0) {
             // resend
             requestsToResend.push_back(otherQueue.front());
+            log("other kind of request was not sent: " + otherQueue.front().message);
             otherQueue.pop();
         } else {
             // request stays in queue
@@ -115,12 +156,9 @@ list <request> getRequestsSentToAstraea(double response_ms) {
     }
 
     // resend requests that remained in queue
-    for (auto requestToResend : requestsToResend) {
-        sendRequestToAstraea(requestToResend.ip_client, requestToResend.message, requestToResend.read_request);
-    }
-
-    // reset flags
-    sendWriteRequestsToAstraea = sendWriteRequestsToAstraea = true;
+    // async because it might take a while
+    thread t0(resendRequestsAsync, requestsToResend);
+    t0.detach();
 
     // return requests that were sent to astraea
     return requestsToHandle;
@@ -150,12 +188,12 @@ auto gateway_api = http_api(
             sendRequestToAstraea(param.ip_client, param.request, false);
         },
 
-        POST / _release * get_parameters(_response = string(), _timestamp = double()) = [](auto param) {
-            m.lock();
+        POST / _release * get_parameters(_response = string(), _timestamp = double(), _id = long()) = [](auto param) {
             log("received a response " + string(param.response) + " from astraea");
 
+            m.lock();
             // get all requests from queue that were sent to astraea
-            list <request> requests = getRequestsSentToAstraea(param.timestamp);
+            list <request> requests = getRequestsSentToAstraea(param.timestamp, param.id);
             log("found " + to_string(requests.size()) + " requests to handle");
 
             // handle requests
@@ -180,5 +218,5 @@ auto gateway_api = http_api(
 );
 
 int main() {
-    sl::mhd_json_serve(gateway_api, 4000, _linux_epoll, _nthreads = 20);
+    sl::mhd_json_serve(gateway_api, 4000);
 }

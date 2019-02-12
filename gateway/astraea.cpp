@@ -14,13 +14,17 @@ using namespace chrono;
 bool ack_process_is_running = false;
 mutex m;
 
+string getIdFromForm(string form) {
+    return form.substr(string("{\"Id\": \"").length(), form.substr(string("{\"Id\": \"").length(), form.length()).find("\""));
+}
+
 void generateMCValue(string form) {
     // mock generating M.C. value
     waitSomeTime(80);
 
     // respond
     milliseconds ms = duration_cast<milliseconds>(system_clock::now().time_since_epoch());
-    map <string, string> params = {{"response", form}, {"timestamp", to_string(ms.count())}};
+    map <string, string> params = {{"response", form}, {"timestamp", to_string(ms.count())}, {"id", getIdFromForm(form)}};
     restCallPost("gateway:4000/release", params);
 
     // reset running flag
@@ -58,6 +62,6 @@ auto auth_api = http_api(
 
 int main()
 {
-    sl::mhd_json_serve(auth_api, 5000, _one_thread_per_connection, _nthreads = 3);
+    sl::mhd_json_serve(auth_api, 5000);
 }
 

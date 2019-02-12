@@ -23,12 +23,14 @@ using namespace std;
 mutex mt;
 
 struct request {
+    long astraeaId;
     string message;
     string ip_client;
     chrono::milliseconds timestamp;
     bool read_request;
 public:
     string toString() {
+        cout << to_string(astraeaId);
         cout << message;
         cout << ip_client;
         cout << timestamp.count();
@@ -40,9 +42,9 @@ public:
     }
 };
 
-string createForm(string ip_client, string request) {
+string createForm(long id, string ip_client, string request) {
     ostringstream ss;
-    ss << "{\"User\": \"" << ip_client << "\", \"Query\": \"" << request << "\"}";
+    ss << "{\"Id\": \"" << to_string(id) << "\", \"User\": \"" << ip_client << "\", \"Query\": \"" << request << "\"}";
     return ss.str();
 }
 
