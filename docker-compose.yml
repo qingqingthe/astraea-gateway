@@ -1,5 +1,12 @@
-version: '3.2'
+version: '2.1'
 services:
+    client:
+        container_name: client
+        build: ./client
+        ports:
+            - "6000:6000"
+        volumes:
+            - ./client/received:/received
     gateway:
         container_name: gateway
         build: ./gateway
@@ -7,10 +14,11 @@ services:
             - "4000:4000"
         depends_on: 
             - target-db
-        deploy:
-            resources:
-                limits:
-                    cpus: '0.25'
+
+        cpu_quota: 50000
+        cpu_period: 20ms            
+        volumes:
+            - ./gateway/data:/data
           
     astraea:
         container_name: astraea
@@ -21,10 +29,9 @@ services:
             - log-db
             - target-db
             - amcs
-#        deploy:
-#            resources:
-#                limits:
-#                    cpus: '0.25'  
+        cpu_quota: 50000
+        cpu_period: 20ms
+
  
 
     amcs:
@@ -36,11 +43,8 @@ services:
         devices:
             - "/dev/isgx:/dev/isgx"
             - "/dev/mei0:/dev/mei0"
-        deploy: 
-            resources:
-                limits:
-                    cpus: '0.25'
-           
+
+ 
     log-db:
         container_name: log-db
         command: ["mysqld", "--innodb-use-native-aio=0"]
@@ -59,8 +63,10 @@ services:
         image: sconecuratedimages/apps:mariadb-10-alpine   
 #        volumes:
 #            - data:/var/lib/mysql/data2
-        expose:
-            - "3306"
+#        expose:
+#            - "3306"
+        ports:
+            - "3306:3306"
         environment:
             MYSQL_ROOT_PASSWORD: 'TEST_PASSWORD'
             MYSQL_DATABASE: 'target'

@@ -140,6 +140,7 @@ void restCallPostJsonAsync(string url, map <string, string> params) {
     if (curl) {
         struct curl_slist *headers=NULL;
         headers = curl_slist_append(headers, "Content-Type: application/json");
+        curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "POST");
         cJSON *root = NULL, *item = NULL;
         char *json = NULL;
         root = cJSON_CreateObject();
@@ -147,16 +148,22 @@ void restCallPostJsonAsync(string url, map <string, string> params) {
             cJSON_AddStringToObject(root, x.first.c_str(), x.second.c_str());
         }
         json = cJSON_PrintUnformatted(root);
-        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, json);
-        curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, strlen(json));
-        curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "POST");
-        curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 1L);
         curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
         curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 0.001);
+	curl_easy_setopt(curl, CURLOPT_POSTFIELDS, json);
+        int datalen = params.size();
+	curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, datalen);
+//	curl_easy_setopt(curl, CURLOPT_POST, 1);
+	curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+//	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, &writeCallback);
+//	curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L); 
+//	curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+//	curl_easy_setopt(curl, CURLOPT_CAINFO, "C:\\path\\cacert.pem");
         CURLcode res = curl_easy_perform(curl);
+        log("called " + url);
         curl_easy_cleanup(curl);
-    }
+    }    
+
 }
 
 

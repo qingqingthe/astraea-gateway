@@ -11,45 +11,73 @@
 #include <stdlib.h>
 #include <sstream>
 
+#include <unistd.h>
+#include <iostream>
+#include <fstream>
+#include <ctime>
+#include <vector>
+
 
 using namespace sl; // Silicon namespace
 using namespace s; // Symbols namespace
 using namespace std;
 
 
-static const string DATABASE_HOST = "database";
+
+int throughput = 0;
+vector<pair<unsigned int, int>> second_throughput;
+
+
+
+static const string DATABASE_HOST = "target-db";
 static const string DATABASE_PORT = "3306";
 static const string DATABASE_PASSWORD = "TEST_PASSWORD";
 static const string DATABASE_USER = "root";
 static const string DATABASE_NAME = "target";
-//sql::Driver *driver = get_driver_instance();
-//sql::Connection *conn;
-//sql::Statement *stmt;
-//ResultSet *res;
+static const int INT_BUF = 12;
+static const int TIMEOUT = 10;
+bool timeout_expired = false;
+
+
 
 queue <request> myQueue;
 mutex m;
 
 
-// for debugging reasons
-void printQueue() {
-    queue <request> duplicate = myQueue;
-    while (!duplicate.empty()) {
-        cout << &duplicate.front() << endl;
-        cout << duplicate.front().toString() << endl;
-        duplicate.pop();
-    }
+void record_requests() {
+     ofstream myfile;
+     myfile.open("./data/throughput.csv");
+     char str_second[INT_BUF];
+     char str_requests_n[INT_BUF];
+     if (second_throughput.size() > 0) {
+         for (int i = 0; i < second_throughput.size(); i++){
+             log("recording requests!");
+             unsigned int second = second_throughput[i].first;
+             int requests_n  = second_throughput[i].second;
+             sprintf(str_second, "%d", second);
+             sprintf(str_requests_n, "%d", requests_n);
+             log("second being written to file: " + string(str_second));
+             myfile << str_second;
+             myfile << ",";
+             myfile << str_requests_n;
+             myfile << "\n";
+             memset(str_second, 0, sizeof(str_second));
+             memset(str_requests_n, 0, sizeof(str_requests_n));
+         }
+     }
+     myfile.close();
 }
 
+
 string flushToTarget(string query) {
-    string mysql = "mysql -h'" + DATABASE_HOST + "' -P'" + DATABASE_PORT + "' -u'" + DATABASE_USER + "' -p'" + DATABASE_PASSWORD + "' -e'" + DATABASE_NAME + "'";
+    string mysql = "mysql -h'" + DATABASE_HOST + "' -P'" + DATABASE_PORT + "' -u'" + DATABASE_USER + "' -p'" + DATABASE_PASSWORD + "' -D'" + DATABASE_NAME + "' -e'" + query + "'"; 
+  //  printf("mysql call: %s\n", mysql.c_str());
     string response;    
     FILE *fp;
     char line[PAGE_SIZE];
     fp = popen(mysql.c_str(), "w");
     while (fgets(line, PATH_MAX, fp)){
-        response += (string(line) + "\n");
-        
+        response += (string(line) + "\n"); 
     }
       return response;
 }
@@ -73,8 +101,6 @@ string flushToTarget(string query) {
 // get all requests from queue that were sent to astraea
 list <request> getRequestsSentToAstraea() {
     list <request> requests;
-    if (myQueue.empty()) 
-        log("myQueue is empty :(");
     queue <request> duplicate = myQueue;
     int countPops = 0;
     if (duplicate.empty())
@@ -95,7 +121,6 @@ list <request> getRequestsSentToAstraea() {
 
         // break if queue is empty
         if (duplicate.empty()) {
-            log("queue is empty!");
             break;
         }
     }
@@ -109,6 +134,33 @@ list <request> getRequestsSentToAstraea() {
     return requests;
 }
 
+void check_timeout(unsigned int last_second, unsigned int current_second) {
+    if ((last_second + TIMEOUT) < current_second) {
+        record_requests();
+        
+    }
+}
+
+void record_time() {
+    std::time_t current_second = std::time(0);
+    if (second_throughput.size() == 0) {
+        second_throughput.push_back(make_pair(current_second, 0));
+    }
+    unsigned int last_second = second_throughput.back().first;
+    check_timeout(last_second, current_second);
+    if(current_second != last_second){
+        pair <unsigned int, int> new_record = make_pair(current_second, throughput);
+        second_throughput.push_back(new_record);
+        char char_throughput[INT_BUF];
+        sprintf(char_throughput, "%d", throughput);
+        string str_throughput(char_throughput);
+        throughput = 0;
+    }
+    throughput++;
+}
+
+
+
 auto gateway_api = http_api(
 
         GET / _hello_world = []() {
@@ -119,17 +171,17 @@ auto gateway_api = http_api(
 
         POST / _read_request_from_client * get_parameters(_request = string(), _ip_client = string()) = [](auto param) {
 
-            log("gateway received read request " + string(param.request) + " from " + param.ip_client);
-            cout << "gateway received read request " + string(param.request) + " from " + param.ip_client << endl;
             // send request to db
             map<string, string> params = {{"request", param.request}};
             string response;
             //db(param.request) >> response;
             response = flushToTarget(param.request);
-            log("response from mysql: " + response);
+
+
             // send request to astraea (asynchronously)
 //           params = {{"form", createForm(string(param.ip_client), string(param.request))}};
-            params = {{"ip_client", param.ip_client}, {"request", param.request}};           
+            params = {{"ip_client", param.ip_client}, {"query", param.request}};          
+             
             restCallPostJsonAsync("astraea:5000/write", params);
             // push request to queue
             struct request request = {response, param.ip_client, time(nullptr), true, true};
@@ -150,18 +202,22 @@ auto gateway_api = http_api(
 
         POST / _release * get_parameters(_response) = [](auto param){
             m.lock();
-            log("received a response " + string(param.response) + " from astraea");
-
+            if(timeout_expired == true) {
+                record_requests();
+            }
+            log("[INFO] received a response " + string(param.response) + " from astraea");
             // get all requests from queue that were sent to astraea
             list <request> requests = getRequestsSentToAstraea();
-            log("found " + to_string(requests.size()) + " requests to handle");
 
             // handle requests
             for (list<request>::iterator it = requests.begin(); it != requests.end(); ++it) {
+                
                 if (it->read_request) {
                     // return response to client
-                    map<string, string> params = {{"response", string(it->message)}};
+//                    map<string, string> params = {{"response", string(it->message)}};
+                    map<string, string> params = {{"response", "OK"}};
                     restCallPost(string(it->ip_client) + "/response", params);
+                    record_time();
                 } else {
                     // send request to db
                     string response;
@@ -171,6 +227,7 @@ auto gateway_api = http_api(
                     // return response to client
                     map<string, string> params = {{"response", response}};
                     restCallPost(string(it->ip_client) + "/response", params);
+                    record_time();             
 
                 }
             }
@@ -179,7 +236,11 @@ auto gateway_api = http_api(
         }
 );
 
+
+
+
 int main() {
+    
 
     sl::mhd_json_serve(gateway_api, 4000, _linux_epoll, _nthreads = 20);
 }
