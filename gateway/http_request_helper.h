@@ -8,7 +8,7 @@
 #include <stdio.h>
 #include <iostream>
 #include <curl/curl.h>
-#include <jsoncpp/json.h>
+#include <json/json.h>
 #include <chrono>
 #include <thread>
 #include <iomanip>
@@ -58,7 +58,7 @@ void log(string message) {
             boost::posix_time::microsec_clock::local_time();
     const boost::posix_time::time_duration td = now.time_of_day();
     char buf[40];
-    sprintf(buf, "%02i:%02i:%02i.%03ld",
+    sprintf(buf, "%02d:%02d:%02d.%03ld",
             td.hours(), td.minutes(), td.seconds(), td.total_milliseconds() -
                                                     ((td.hours() * 3600 + td.minutes() * 60 + td.seconds()) * 1000));
     cout << buf << " " << message << endl;
@@ -129,7 +129,7 @@ void restCallPostAsync(string url, map <string, string> params) {
         curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
         curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 0.001);
         CURLcode res = curl_easy_perform(curl);
-        log("called " + url);
+//        log("called " + url);
         curl_easy_cleanup(curl);
     }
 }

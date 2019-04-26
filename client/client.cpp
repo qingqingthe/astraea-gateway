@@ -124,5 +124,5 @@ auto client_api = http_api(
 int main(){
     log("STARTING CLIENT");
     srand (time(NULL));
-    sl::mhd_json_serve(client_api, 6000);
+    sl::mhd_json_serve(client_api, 6000, _nthreads = 2);
 }

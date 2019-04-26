@@ -15,8 +15,8 @@ services:
         depends_on: 
             - target-db
 
-        cpu_quota: 50000
-        cpu_period: 20ms            
+#        cpu_quota: 50000
+#        cpu_period: 20ms            
         volumes:
             - ./gateway/data:/data
           
@@ -29,8 +29,8 @@ services:
             - log-db
             - target-db
             - amcs
-        cpu_quota: 50000
-        cpu_period: 20ms
+#        cpu_quota: 50000
+#        cpu_period: 20ms
 
  
 

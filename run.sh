@@ -1,3 +1,4 @@
+#!/bin/bash
 received="./client/received/received.csv"
 rt="/response_times.csv"
 dir="./latencies"
@@ -12,11 +13,11 @@ echo -n "" > ./gateway/data/throughput.csv
 if [ ! -d $dir ]; then
     mkdir $dir
 fi
-it=5000
+it=90000
 for (( i=0; i<$it; i++ ))
 do
 #        sleep $(echo "0.0003 * ($it - $i)" | bc)
-        sleep 0.0055 
+        sleep 0.001 #0.0055 
         ./send_request.sh $i &
 ##        if [[ $(($i % 10)) == 0 ]]; then
 ##            echo "$i"
